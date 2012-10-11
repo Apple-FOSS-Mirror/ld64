@@ -22,21 +22,33 @@
  */
 
 
-#ifndef __SECTCREATE__
-#define __SECTCREATE__
+#ifndef __EXECUTABLEFILEMACHO__
+#define __EXECUTABLEFILEMACHO__
 
+class Options;
 
-#include "ObjectFile.h"
+namespace ppc {
+	namespace ExecutableFileMachO {
+		extern class ExecutableFile::Writer* MakeWriter(const char* path, Options&, std::vector<ExecutableFile::DyLibUsed>&);
+	}
+};
 
-namespace SectCreate {
+namespace ppc64 {
+	namespace ExecutableFileMachO {
+		extern class ExecutableFile::Writer* MakeWriter(const char* path, Options&, std::vector<ExecutableFile::DyLibUsed>&);
+	}
+};
 
-	extern ObjectFile::Reader* MakeReader(const char* segmentName, const char* sectionName, const char* path, const uint8_t fileContent[], uint64_t fileLength);
-
+#undef i386 // compiler sometimes #defines this
+namespace i386 {
+	namespace ExecutableFileMachO {
+		extern class ExecutableFile::Writer* MakeWriter(const char* path, Options&, std::vector<ExecutableFile::DyLibUsed>&);
+	}
 };
 
 
-#endif
 
+#endif // __EXECUTABLEFILEMACHO__
 
 
 
