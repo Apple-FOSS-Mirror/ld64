@@ -85,7 +85,6 @@ public:
 	virtual Scope								getScope() const			{ return ObjectFile::Atom::scopeGlobal; }
 	virtual DefinitionKind						getDefinitionKind() const	{ return fWeakDefinition ? kExternalWeakDefinition : kExternalDefinition; }
 	virtual SymbolTableInclusion				getSymbolTableInclusion() const	{ return ObjectFile::Atom::kSymbolTableIn; }
-	virtual	bool								dontDeadStrip() const		{ return false; }
 	virtual bool								isZeroFill() const			{ return false; }
 	virtual uint64_t							getSize() const				{ return 0; }
 	virtual std::vector<ObjectFile::Reference*>&  getReferences() const		{ return fgEmptyReferenceList; }
@@ -95,7 +94,7 @@ public:
 	virtual bool								requiresFollowOnAtom() const{ return false; }
 	virtual ObjectFile::Atom&					getFollowOnAtom() const		{ return *((ObjectFile::Atom*)NULL); }
 	virtual std::vector<ObjectFile::LineInfo>*	getLineInfo() const			{ return NULL; }
-	virtual ObjectFile::Alignment				getAlignment() const		{ return ObjectFile::Alignment(0); }
+	virtual uint8_t								getAlignment() const		{ return 0; }
 	virtual void								copyRawContent(uint8_t buffer[]) const  {}
 
 	virtual void								setScope(Scope)				{ }
@@ -132,11 +131,10 @@ template <typename A>
 class Reader : public ObjectFile::Reader
 {
 public:
-	static bool										validFile(const uint8_t* fileContent, bool executableOrDylib);
-	static Reader<A>*								make(const uint8_t* fileContent, uint64_t fileLength, const char* path, 
-														bool executableOrDylib, const ObjectFile::ReaderOptions& options)
-														{ return new Reader<A>(fileContent, fileLength, path, executableOrDylib, options); }
-	virtual											~Reader() {}
+	static bool										validFile(const uint8_t* fileContent);
+	static Reader<A>*								make(const uint8_t* fileContent, uint64_t fileLength, const char* path, const ObjectFile::ReaderOptions& options)
+														{ return new Reader<A>(fileContent, fileLength, path, options); }
+	virtual										~Reader() {}
 
 	virtual const char*								getPath()					{ return fPath; }
 	virtual time_t									getModificationTime()		{ return 0; }
@@ -170,8 +168,7 @@ private:
 
 	struct PathAndFlag { const char* path; bool reExport; };
 
-												Reader(const uint8_t* fileContent, uint64_t fileLength, const char* path,
-														bool executableOrDylib, const ObjectFile::ReaderOptions& options);
+												Reader(const uint8_t* fileContent, uint64_t fileLength, const char* path, const ObjectFile::ReaderOptions& options);
 
 	const char*									fPath;
 	const char*									fParentUmbrella;
@@ -194,11 +191,11 @@ bool									Reader<A>::fgLogHashtable = false;
 
 
 template <typename A>
-Reader<A>::Reader(const uint8_t* fileContent, uint64_t fileLength, const char* path, bool executableOrDylib, const ObjectFile::ReaderOptions& options)
+Reader<A>::Reader(const uint8_t* fileContent, uint64_t fileLength, const char* path, const ObjectFile::ReaderOptions& options)
 	: fParentUmbrella(NULL), fDylibInstallPath(NULL), fDylibTimeStamp(0), fDylibtCurrentVersion(0), fDylibCompatibilityVersion(0)
 {
 	// sanity check
-	if ( ! validFile(fileContent, executableOrDylib) )
+	if ( ! validFile(fileContent) )
 		throw "not a valid mach-o object file";
 
 	fPath = strdup(path);
@@ -304,7 +301,7 @@ Reader<A>::Reader(const uint8_t* fileContent, uint64_t fileLength, const char* p
 	}
 
 	// validate minimal load commands
-	if ( (fDylibInstallPath == NULL) && (header->filetype() != MH_EXECUTE) ) 
+	if ( fDylibInstallPath == NULL ) 
 		throw "dylib missing LC_ID_DYLIB load command";
 	if ( symbolTable == NULL )
 		throw "dylib missing LC_SYMTAB load command";
@@ -407,9 +404,8 @@ bool Reader<A>::reExports(ObjectFile::Reader* child)
 {
 	// A dependent dylib is re-exported under two conditions:
 	//  1) parent contains LC_SUB_UMBRELLA or LC_SUB_LIBRARY with child name
-	const char* childInstallPath = child->getInstallPath();
 	for (typename std::vector<PathAndFlag>::iterator it = fDependentLibraryPaths.begin(); it != fDependentLibraryPaths.end(); it++) {
-		if ( it->reExport && ((strcmp(it->path, child->getPath()) == 0) || ((childInstallPath!=NULL) && (strcmp(it->path, childInstallPath)==0))) )
+		if ( it->reExport && (strcmp(it->path, child->getPath()) == 0) )
 			return true;
 	}
 
@@ -426,79 +422,42 @@ bool Reader<A>::reExports(ObjectFile::Reader* child)
 }
 
 template <>
-bool Reader<ppc>::validFile(const uint8_t* fileContent, bool executableOrDylib)
+bool Reader<ppc>::validFile(const uint8_t* fileContent)
 {
 	const macho_header<P>* header = (const macho_header<P>*)fileContent;
 	if ( header->magic() != MH_MAGIC )
 		return false;
 	if ( header->cputype() != CPU_TYPE_POWERPC )
 		return false;
-	switch ( header->filetype() ) {
-		case MH_DYLIB:
-		case MH_DYLIB_STUB:
-			return true;
-		case MH_EXECUTE:
-			return executableOrDylib;
-		default:
-			return false;
-	}
+	if ( (header->filetype() != MH_DYLIB) && (header->filetype() != MH_DYLIB_STUB)  )
+		return false;
+	return true;
 }
 
 template <>
-bool Reader<ppc64>::validFile(const uint8_t* fileContent, bool executableOrDylib)
+bool Reader<ppc64>::validFile(const uint8_t* fileContent)
 {
 	const macho_header<P>* header = (const macho_header<P>*)fileContent;
 	if ( header->magic() != MH_MAGIC_64 )
 		return false;
 	if ( header->cputype() != CPU_TYPE_POWERPC64 )
 		return false;
-	switch ( header->filetype() ) {
-		case MH_DYLIB:
-		case MH_DYLIB_STUB:
-			return true;
-		case MH_EXECUTE:
-			return executableOrDylib;
-		default:
-			return false;
-	}
+	if ( (header->filetype() != MH_DYLIB) && (header->filetype() != MH_DYLIB_STUB)  )
+		return false;
+	return true;
 }
 
 template <>
-bool Reader<x86>::validFile(const uint8_t* fileContent, bool executableOrDylib)
+bool Reader<x86>::validFile(const uint8_t* fileContent)
 {
 	const macho_header<P>* header = (const macho_header<P>*)fileContent;
 	if ( header->magic() != MH_MAGIC )
 		return false;
 	if ( header->cputype() != CPU_TYPE_I386 )
 		return false;
-	switch ( header->filetype() ) {
-		case MH_DYLIB:
-		case MH_DYLIB_STUB:
-			return true;
-		case MH_EXECUTE:
-			return executableOrDylib;
-		default:
-			return false;
-	}
-}
-
-template <>
-bool Reader<x86_64>::validFile(const uint8_t* fileContent, bool executableOrDylib)
-{
-	const macho_header<P>* header = (const macho_header<P>*)fileContent;
-	if ( header->magic() != MH_MAGIC_64 )
+	if ( (header->filetype() != MH_DYLIB) && (header->filetype() != MH_DYLIB_STUB)  )
 		return false;
-	if ( header->cputype() != CPU_TYPE_X86_64 )
-		return false;
-	switch ( header->filetype() ) {
-		case MH_DYLIB:
-		case MH_DYLIB_STUB:
-			return true;
-		case MH_EXECUTE:
-			return executableOrDylib;
-		default:
-			return false;
-	}
+	return true;
 }
 
 

@@ -59,16 +59,13 @@ struct LineInfo
 class ReaderOptions
 {
 public:
-						ReaderOptions() : fFullyLoadArchives(false), fLoadObjcClassesInArchives(false), fFlatNamespace(false), 
-										fForFinalLinkedImage(false), fWhyLoad(false), fDebugInfoStripping(kDebugInfoFull),
-										 fTraceDylibs(false), fTraceIndirectDylibs(false), fTraceArchives(false), fTraceOutputFile(NULL) {}
+						ReaderOptions() : fFullyLoadArchives(false), fLoadObjcClassesInArchives(false), fFlatNamespace(false),
+										  fDebugInfoStripping(kDebugInfoFull), fTraceDylibs(false), fTraceIndirectDylibs(false), fTraceArchives(false), fTraceOutputFile(NULL) {}
 	enum DebugInfoStripping { kDebugInfoNone, kDebugInfoMinimal, kDebugInfoFull };
 
 	bool				fFullyLoadArchives;
 	bool				fLoadObjcClassesInArchives;
 	bool				fFlatNamespace;
-	bool				fForFinalLinkedImage;
-	bool				fWhyLoad;
 	DebugInfoStripping	fDebugInfoStripping;
 	bool				fTraceDylibs;
 	bool				fTraceIndirectDylibs;
@@ -154,13 +151,6 @@ protected:
 };
 
 
-struct Alignment 
-{ 
-				Alignment(int p2, int m=0) : powerOf2(p2), modulus(m) {}
-	uint8_t		leadingZeros() const { return (modulus==0) ? powerOf2 : __builtin_clz(modulus); }
-	uint16_t	powerOf2;  
-	uint16_t	modulus; 
-};
 
 //
 // An atom is the fundamental unit of linking.  A C function or global variable is an atom.
@@ -200,7 +190,7 @@ class Atom
 public:
 	enum Scope { scopeTranslationUnit, scopeLinkageUnit, scopeGlobal };
 	enum DefinitionKind { kRegularDefinition, kWeakDefinition, kTentativeDefinition, kExternalDefinition, kExternalWeakDefinition };
-	enum SymbolTableInclusion { kSymbolTableNotIn, kSymbolTableIn, kSymbolTableInAndNeverStrip, kSymbolTableInAsAbsolute };
+	enum SymbolTableInclusion { kSymbolTableNotIn, kSymbolTableIn, kSymbolTableInAndNeverStrip };
 
 	virtual Reader*							getFile() const = 0;
 	virtual bool							getTranslationUnitSource(const char** dir, const char** name) const = 0;
@@ -209,7 +199,6 @@ public:
 	virtual Scope							getScope() const = 0;
 	virtual DefinitionKind					getDefinitionKind() const = 0;
 	virtual SymbolTableInclusion			getSymbolTableInclusion() const = 0;
-	virtual	bool							dontDeadStrip() const = 0;
 	virtual bool							isZeroFill() const = 0;
 	virtual uint64_t						getSize() const = 0;
 	virtual std::vector<ObjectFile::Reference*>&  getReferences() const = 0;
@@ -219,7 +208,7 @@ public:
 	virtual bool							requiresFollowOnAtom() const = 0;
 	virtual Atom&							getFollowOnAtom() const = 0;
 	virtual std::vector<LineInfo>*			getLineInfo() const = 0;
-	virtual Alignment						getAlignment() const = 0;
+	virtual uint8_t							getAlignment() const = 0;
 	virtual void							copyRawContent(uint8_t buffer[]) const = 0;
 	virtual void							setScope(Scope) = 0;
 
@@ -229,20 +218,23 @@ public:
 			uint64_t						getAddress() const	{ return fSection->getBaseAddress() + fSectionOffset; }
 			unsigned int					getSortOrder() const { return fSortOrder; }
 			class Section*					getSection() const { return fSection; }
+			bool							dontDeadStrip() const { return fDontDeadStrip; }
 
 			void							setSegmentOffset(uint64_t offset) { fSegmentOffset = offset; }
 			void							setSectionOffset(uint64_t offset) { fSectionOffset = offset; }
 			void							setSection(class Section* sect) { fSection = sect; }
 			unsigned int					setSortOrder(unsigned int order); // recursively sets follow-on atoms
+			void							setDontDeadStrip() { fDontDeadStrip = true; }
 
 protected:
-											Atom() : fSegmentOffset(0), fSectionOffset(0), fSortOrder(0), fSection(NULL) {}
+											Atom() : fSegmentOffset(0), fSectionOffset(0), fSortOrder(0), fSection(NULL), fDontDeadStrip(false) {}
 		virtual								~Atom() {}
 
 		uint64_t							fSegmentOffset;
 		uint64_t							fSectionOffset;
 		unsigned int						fSortOrder;
 		class Section*						fSection;
+		bool								fDontDeadStrip;
 };
 
 

@@ -70,7 +70,6 @@ public:
 	virtual Scope								getScope() const			{ return ObjectFile::Atom::scopeTranslationUnit; }
 	virtual DefinitionKind						getDefinitionKind() const	{ return kRegularDefinition; }
 	virtual SymbolTableInclusion				getSymbolTableInclusion() const { return ObjectFile::Atom::kSymbolTableNotIn; }
-	virtual	bool								dontDeadStrip() const		{ return true; }
 	virtual bool								isZeroFill() const			{ return false; }
 	virtual uint64_t							getSize() const				{ return fFileLength; }
 	virtual std::vector<ObjectFile::Reference*>&  getReferences() const		{ return fgEmptyReferenceList; }
@@ -80,7 +79,7 @@ public:
 	virtual bool								requiresFollowOnAtom() const{ return false; }
 	virtual ObjectFile::Atom&					getFollowOnAtom() const		{ return *((ObjectFile::Atom*)NULL); }
 	virtual std::vector<ObjectFile::LineInfo>*	getLineInfo() const			{ return NULL; }
-	virtual ObjectFile::Alignment				getAlignment() const		{ return ObjectFile::Alignment(4); }
+	virtual uint8_t								getAlignment() const		{ return 4; }
 	virtual void								copyRawContent(uint8_t buffer[]) const;
 
 	virtual void								setScope(Scope)				{ }
@@ -89,7 +88,7 @@ protected:
 	friend class Reader;
 	
 											Atom(Reader& owner, Segment& segment, const char* sectionName, const uint8_t fileContent[], uint64_t fileLength) 
-												: fOwner(owner), fSegment(segment), fSectionName(sectionName), fFileContent(fileContent), fFileLength(fileLength) { }
+												: fOwner(owner), fSegment(segment), fSectionName(sectionName), fFileContent(fileContent), fFileLength(fileLength) { setDontDeadStrip(); }
 	virtual									~Atom() {}
 	
 	Reader&									fOwner;

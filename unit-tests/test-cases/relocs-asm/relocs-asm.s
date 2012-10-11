@@ -190,81 +190,6 @@ _test_branches:
 
 
 
-#if __x86_64__
-	.text
-	.align 2
-	
-	.globl _test_loads
-_test_loads:
-
-	# PIC load of a 
-	movl	_a(%rip), %eax
-	
-	# PIC load of a + addend
-	movl	_a+0x1234(%rip), %eax
-
-	# PIC lea
-	leaq	_a(%rip), %rax
-
-	# PIC lea through GOT
-	movq	_a@GOTPCREL(%rip), %rax
-	
-	# PIC access of GOT
-  	pushq	_a@GOTPCREL(%rip)
-
-	# PIC lea external through GOT
-	movq	_ax@GOTPCREL(%rip), %rax
-	
-	# PIC external access of GOT
-  	pushq	_ax@GOTPCREL(%rip)
-
-	# 1-byte store
-  	movb  $0x12, _a(%rip)
-  	movb  $0x12, _a+2(%rip)
-  	movb  $0x12, L0(%rip)
-
-	# 4-byte store
-  	movl  $0x12345678, _a(%rip)
-  	movl  $0x12345678, _a+4(%rip)
-  	movl  $0x12345678, L0(%rip)
-	
-	# test local labels
-	lea L1(%rip), %rax		
-  	movl L0(%rip), %eax		
-
-	ret
-
-
-_test_calls:
-	# call internal
-	call	_test_branches
-	
-	# call internal + addend
-	call	_test_branches+0x19000
-
-	# call external
-	call	_external
-	
-	# call external + addend
-	call	_external+0x19000
-	
-
-_test_branches:
-	# call internal
-	jne	_test_calls
-	
-	# call internal + addend
-	jne	_test_calls+16
-
-	# call external
-	jne	_external
-	
-	# call external + addend
-	jne	_external+16
-#endif
-
-
-
 	# test that pointer-diff relocs are preserved
 	.text
 _test_diffs:
@@ -274,32 +199,6 @@ Llocal2:
 	.long Llocal2-_test_branches
 #if __ppc64__
 	.quad Llocal2-_test_branches
-#endif
-
-
-#if __x86_64__
-	.data
-L0:  .quad _test_branches
-_prev:
-	.quad _test_branches+4
-L1:	.quad _test_branches - _test_diffs
-  	.quad _test_branches - _test_diffs + 4
-  	.long _test_branches - _test_diffs
-#	.long LCL0-.				### assembler bug: should SUB/UNSIGNED with content= LCL0-24, or single pc-rel SIGNED reloc with content = LCL0-.+4
-  	.quad L1
-  	.quad L0					
-  	.quad _test_branches - .
-  	.quad _test_branches - L1
-  	.quad L1 - _prev			
-
-# the following generates: _foo cannot be undefined in a subtraction expression
-# but it should be ok (it will be a linker error if _foo and _bar are not in same linkage unit)
-#	.quad _foo - _bar	### assembler bug
-
-	.section __DATA,__data2
-LCL0: .long 2
-
-
 #endif
 
 
@@ -313,7 +212,7 @@ _b:
 	.long	_test_calls+16
 	.long	_external
 	.long	_external+16
-#elif __ppc64__ || __x86_64__
+#elif __ppc64__
 	.quad	_test_calls
 	.quad	_test_calls+16
 	.quad	_external
