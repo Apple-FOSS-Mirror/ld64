@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2005 Apple Computer, Inc. All rights reserved.
+ * Copyright (c) 2005-2007 Apple Inc. All rights reserved.
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
@@ -186,6 +186,18 @@ _test_branches:
 	
 	# call external + addend
 	jne	_external+16
+	
+_pointer_diffs:
+	nop
+	call	_get_ret_eax	
+1:	movl _foo-1b(%eax),%esi
+	movl _foo+10-1b(%eax),%esi
+	movl _test_branches-1b(%eax),%esi
+	movl _test_branches+3-1b(%eax),%esi
+	
+_word_relocs:
+	callw	_pointer_diffs
+
 #endif
 
 
@@ -220,13 +232,17 @@ _test_loads:
 
 	# 1-byte store
   	movb  $0x12, _a(%rip)
+  	movb  $0x12, _a+2(%rip)
+  	movb  $0x12, L0(%rip)
 
 	# 4-byte store
   	movl  $0x12345678, _a(%rip)
+  	movl  $0x12345678, _a+4(%rip)
+  	movl  $0x12345678, L0(%rip)
 	
 	# test local labels
-#	lea L1(%rip), %rax		### assembler bug
-#  	movl L0(%rip), %eax		### assembler bug
+	lea L1(%rip), %rax		
+  	movl L0(%rip), %eax		
 
 	ret
 
@@ -268,9 +284,34 @@ _test_diffs:
 Llocal2:
 	.long 0
 	.long Llocal2-_test_branches
+	.long . - _test_branches
+	.long . - _test_branches + 8
+	.long _test_branches - .
+	.long _test_branches - . + 8
+	.long _test_branches - . - 8
 #if __ppc64__
 	.quad Llocal2-_test_branches
 #endif
+
+_foo: nop
+
+	.align 2	
+_distance_from_foo:
+	.long	0
+	.long	. - _foo
+	.long	. - 8 - _foo
+	
+	
+_distance_to_foo:
+	.long	_foo - .
+	.long	_foo - . + 4
+	
+
+_distance_to_here:	
+	.long	_foo - _distance_to_here
+	.long	_foo - _distance_to_here - 4 
+	.long	_foo - _distance_to_here - 12 
+	.long	0
 
 
 #if __x86_64__
@@ -281,9 +322,9 @@ _prev:
 L1:	.quad _test_branches - _test_diffs
   	.quad _test_branches - _test_diffs + 4
   	.long _test_branches - _test_diffs
-#	.long LCL0-.				### assembler bug: content value should be (address(LCL0) - 0x24)
+#	.long LCL0-.				### assembler bug: should SUB/UNSIGNED with content= LCL0-24, or single pc-rel SIGNED reloc with content = LCL0-.+4
   	.quad L1
-#  	.quad L0					### assembler bug: should be internal reloc to L0
+  	.quad L0					
   	.quad _test_branches - .
   	.quad _test_branches - L1
   	.quad L1 - _prev			
